@@ -56,5 +56,6 @@ wsproto==1.2.0
 zipp==3.21.0
 streamlit
 torch
+tensorflow
 transformers
 numpy
