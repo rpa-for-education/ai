@@ -30,7 +30,7 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" == "schedule" ] || [ "${{ github.event.inputs.action }}" == "start" ]; then
             echo "Starting bot..."
-            python rpakbs.py
+            python bai_viet.py
           elif [ "${{ github.event.inputs.action }}" == "stop" ]; then
             echo "Stopping bot..."
             # Thêm logic dừng bot tại đây
