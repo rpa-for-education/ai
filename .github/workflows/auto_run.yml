@@ -2,7 +2,7 @@ name: Run Python Script Daily
 
 on:
   schedule:
-    - cron: '50 16 * * *'  # 23:50 Việt Nam
+    - cron: '30 16 * * *'  # 23:30 Việt Nam
   workflow_dispatch:
 
 jobs:
