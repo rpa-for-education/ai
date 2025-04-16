@@ -8,6 +8,7 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import numpy as np
 import os
 from tensorflow.keras.optimizers import Adam
+import json
 
 # Disable TensorFlow GPU and warnings
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
@@ -46,6 +47,17 @@ try:
 except Exception as e:
     print(f"Error loading tokenizer: {e}")
     exit(1)
+
+# Load processed IDs
+processed_ids = set()
+try:
+    with open("processed_ids.json", "r") as f:
+        processed_ids = set(json.load(f))
+    print(f"Loaded {len(processed_ids)} processed article IDs.")
+except FileNotFoundError:
+    print("No processed IDs file found, starting fresh.")
+except Exception as e:
+    print(f"Error loading processed IDs: {e}")
 
 def preprocess_text(text):
     try:
@@ -118,6 +130,11 @@ def get_articles_from_api(page=1, limit=1029):
         if response.text:
             data = response.json()
             print(f"Retrieved {len(data)} articles from API (page {page})")
+            # Check for duplicate IDs in this batch
+            current_ids = {article.get("id_bai_viet", "unknown") for article in data}
+            overlap = current_ids & processed_ids
+            if overlap:
+                print(f"Warning: Found {len(overlap)} duplicate IDs in page {page}: {overlap}")
             return data
         else:
             print("API returned empty response.")
@@ -142,7 +159,9 @@ def update_article_to_api(article):
 
 def main():
     page = 1
-    batch_size = 1029  # Match API's default
+    batch_size = 1029
+    global processed_ids
+
     while True:
         articles = get_articles_from_api(page=page, limit=batch_size)
         if not articles:
@@ -150,16 +169,22 @@ def main():
             break
 
         print(f"Processing batch of {len(articles)} articles (page {page})...")
+        new_articles_processed = 0
         for i, article in enumerate(articles, 1):
             try:
+                article_id = article.get("id_bai_viet", "unknown")
+                if article_id in processed_ids:
+                    print(f"Article ID {article_id}: Already processed, skipping.")
+                    continue
+
                 text_vietnamese = article.get("noi_dung_bai_viet", "")
                 if not text_vietnamese:
-                    print(f"Article ID {article.get('id_bai_viet', 'unknown')}: Empty content, skipping.")
+                    print(f"Article ID {article_id}: Empty content, skipping.")
                     continue
 
                 processed_text = preprocess_text(text_vietnamese)
                 if not processed_text:
-                    print(f"Article ID {article.get('id_bai_viet', 'unknown')}: Empty after preprocessing, skipping.")
+                    print(f"Article ID {article_id}: Empty after preprocessing, skipping.")
                     continue
 
                 lstm_cnn_probs = predict_sentiment_keras(lstm_cnn_model, processed_text)
@@ -171,7 +196,7 @@ def main():
                 article["sentiment_result_lstm_cnn"] = sentiment_lstm_cnn
                 article["sentiment_result_phobert"] = sentiment_phobert
 
-                print(f"Article {i}/{len(articles)} (page {page}) - ID: {article.get('id_bai_viet', 'unknown')}")
+                print(f"Article {i}/{len(articles)} (page {page}) - ID: {article_id}")
                 print(f"Text: {text_vietnamese[:100]}...")
                 print(f"LSTM-CNN Probabilities: {lstm_cnn_probs}")
                 print(f"LSTM-CNN Sentiment: {sentiment_lstm_cnn}")
@@ -180,14 +205,29 @@ def main():
                 print("-" * 50)
 
                 update_article_to_api(article)
+                processed_ids.add(article_id)
+                new_articles_processed += 1
+
             except Exception as e:
                 print(f"Error processing article ID {article.get('id_bai_viet', 'unknown')}: {e}")
                 continue
 
+        print(f"Finished processing page {page}. New articles processed: {new_articles_processed}.")
+        if new_articles_processed == 0:
+            print("No new articles found in this page. Stopping.")
+            break
+
+        # Save processed IDs
+        try:
+            with open("processed_ids.json", "w") as f:
+                json.dump(list(processed_ids), f)
+            print(f"Saved {len(processed_ids)} processed IDs.")
+        except Exception as e:
+            print(f"Error saving processed IDs: {e}")
+
         page += 1
-        print(f"Finished processing page {page - 1}.")
 
 if __name__ == "__main__":
     print("Starting sentiment analysis script...")
     main()
-    print("Script completed.")
+    print(f"Script completed. Total unique articles processed: {len(processed_ids)}.")

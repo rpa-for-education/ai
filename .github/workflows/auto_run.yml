@@ -54,6 +54,21 @@ jobs:
             echo "Starting bot..."
             python bai_viet.py
           else
-            echo "Stop action not supported without persistent process. No action taken."
-            exit 0  # Exit gracefully
+            echo "Stop action not supported without persistent process."
+            exit 0
           fi
+
+      - name: Commit processed IDs
+        if: github.event.inputs.action == 'start'
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "<>"
+          if [ -f processed_ids.json ]; then
+            git add processed_ids.json
+            git commit -m "Update processed_ids.json"
+            git push
+          else
+            echo "No processed_ids.json found, skipping commit."
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
