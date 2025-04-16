@@ -14,7 +14,7 @@ jobs:
   run-script:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # Grant write permission for commits
+      contents: write
     env:
       CUDA_VISIBLE_DEVICES: ""
       TF_CPP_MIN_LOG_LEVEL: "3"

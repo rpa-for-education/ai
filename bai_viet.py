@@ -29,7 +29,7 @@ except Exception as e:
 # Load PhoBERT
 try:
     print("Loading PhoBERT model...")
-    phobert_tokenizer = AutoTokenizer.from_pretrained("vinai/phobert-base")  # Update to fine-tuned path
+    phobert_tokenizer = AutoTokenizer.from_pretrained("vinai/phobert-base")  # Update to "./phobert_fine_tuned" after fine-tuning
     phobert_model = AutoModelForSequenceClassification.from_pretrained("vinai/phobert-base", num_labels=3)
     device = torch.device("cpu")
     phobert_model.to(device)
@@ -66,7 +66,7 @@ def preprocess_text(text):
             return ""
         text = re.sub(r'<[^>]+>', '', text)  # Remove HTML tags
         text = re.sub(r'\s+', ' ', text).strip()  # Normalize whitespace
-        if len(text) < 5:  # Skip very short texts
+        if len(text.split()) < 3:  # Require at least 3 words
             print("Text too short after preprocessing, skipping.")
             return ""
         return text
@@ -126,18 +126,20 @@ def classify_sentiment(probabilities, threshold=0.5):
 def get_articles_from_api(page=1, limit=1029):
     try:
         headers = {"Content-Type": "application/json"}
-        params = {"page": page, "limit": limit}
+        params = {"page": page, "limit": limit}  # Try {"offset": (page-1)*limit, "limit": limit} if needed
         print(f"Fetching articles from API (page {page}, limit {limit})...")
         response = requests.get(api_url, headers=headers, params=params, timeout=10)
         response.raise_for_status()
         if response.text:
             data = response.json()
             print(f"Retrieved {len(data)} articles from API (page {page})")
-            # Check for duplicates
             current_ids = {article.get("id_bai_viet", "unknown") for article in data}
             overlap = current_ids & processed_ids
             if overlap:
                 print(f"Warning: Found {len(overlap)} duplicate IDs in page {page}: {overlap}")
+                if len(overlap) / len(data) > 0.9:
+                    print(f"Page {page} has {len(overlap)}/{len(data)} duplicate IDs. Stopping.")
+                    return []
             return data
         else:
             print("API returned empty response.")
@@ -169,29 +171,31 @@ def main():
     while page <= max_pages:
         articles = get_articles_from_api(page=page, limit=batch_size)
         if not articles:
-            print("No more articles to process.")
+            print("No more articles to process or too many duplicates.")
             break
 
-        print(f"Processing batch of {len(articles)} articles (page {page})...")
+        # Filter valid articles
+        valid_articles = [a for a in articles if a.get("noi_dung_bai_viet", "").strip() and len(a.get("noi_dung_bai_viet", "").split()) >= 3]
+        print(f"Filtered to {len(valid_articles)} valid articles out of {len(articles)}.")
+
+        print(f"Processing batch of {len(valid_articles)} articles (page {page})...")
         new_articles_processed = 0
-        for i, article in enumerate(articles, 1):
+        skipped_empty = 0
+        for i, article in enumerate(valid_articles, 1):
             try:
                 article_id = article.get("id_bai_viet", "unknown")
                 if article_id == "unknown":
-                    print(f"Article {i}/{len(articles)} (page {page}): Missing ID, skipping.")
+                    print(f"Article {i}/{len(valid_articles)} (page {page}): Missing ID, skipping.")
                     continue
                 if article_id in processed_ids:
                     print(f"Article ID {article_id}: Already processed, skipping.")
                     continue
 
                 text_vietnamese = article.get("noi_dung_bai_viet", "")
-                if not text_vietnamese:
-                    print(f"Article ID {article_id}: Empty content, skipping.")
-                    continue
-
                 processed_text = preprocess_text(text_vietnamese)
                 if not processed_text:
                     print(f"Article ID {article_id}: Empty after preprocessing, skipping.")
+                    skipped_empty += 1
                     continue
 
                 lstm_cnn_probs = predict_sentiment_keras(lstm_cnn_model, processed_text)
@@ -203,7 +207,7 @@ def main():
                 article["sentiment_result_lstm_cnn"] = sentiment_lstm_cnn
                 article["sentiment_result_phobert"] = sentiment_phobert
 
-                print(f"Article {i}/{len(articles)} (page {page}) - ID: {article_id}")
+                print(f"Article {i}/{len(valid_articles)} (page {page}) - ID: {article_id}")
                 print(f"Text: {text_vietnamese[:100]}...")
                 print(f"LSTM-CNN Probabilities: {lstm_cnn_probs}")
                 print(f"LSTM-CNN Sentiment: {sentiment_lstm_cnn}")
@@ -219,7 +223,7 @@ def main():
                 print(f"Error processing article ID {article.get('id_bai_viet', 'unknown')}: {e}")
                 continue
 
-        print(f"Finished processing page {page}. New articles processed: {new_articles_processed}.")
+        print(f"Finished processing page {page}. New articles processed: {new_articles_processed}, Skipped (duplicate): {len(valid_articles) - new_articles_processed - skipped_empty}, Skipped (empty): {skipped_empty}.")
         if new_articles_processed == 0:
             print("No new articles found in this page. Stopping.")
             break
