@@ -13,12 +13,16 @@ on:
 jobs:
   run-script:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Grant write permission for commits
     env:
       CUDA_VISIBLE_DEVICES: ""
       TF_CPP_MIN_LOG_LEVEL: "3"
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -62,13 +66,11 @@ jobs:
         if: github.event.inputs.action == 'start'
         run: |
           git config user.name "GitHub Actions Bot"
-          git config user.email "<>"
+          git config user.email "actions@github.com"
           if [ -f processed_ids.json ]; then
             git add processed_ids.json
-            git commit -m "Update processed_ids.json"
+            git commit -m "Update processed_ids.json" || echo "No changes to commit."
             git push
           else
             echo "No processed_ids.json found, skipping commit."
           fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

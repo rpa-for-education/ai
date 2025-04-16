@@ -61,11 +61,14 @@ except Exception as e:
 
 def preprocess_text(text):
     try:
-        if not isinstance(text, str):
-            print(f"Invalid text type: {type(text)}")
+        if not isinstance(text, str) or not text.strip():
+            print("Invalid or empty text, skipping preprocessing.")
             return ""
-        text = re.sub(r'<[^>]+>', '', text)
-        text = re.sub(r'\s+', ' ', text).strip()
+        text = re.sub(r'<[^>]+>', '', text)  # Remove HTML tags
+        text = re.sub(r'\s+', ' ', text).strip()  # Normalize whitespace
+        if len(text) < 5:  # Skip very short texts
+            print("Text too short after preprocessing, skipping.")
+            return ""
         return text
     except Exception as e:
         print(f"Error preprocessing text: {e}")
@@ -97,22 +100,22 @@ def predict_sentiment_phobert(text):
 
 def classify_sentiment(probabilities, threshold=0.5):
     try:
-        if len(probabilities) == 4:
+        if len(probabilities) == 4:  # LSTM-CNN
             if probabilities[1] > threshold:
-                return 1
+                return 1  # Positive
             elif probabilities[3] > threshold:
-                return -2
+                return -2  # Strongly negative
             elif probabilities[2] > threshold:
-                return -1
+                return -1  # Negative
             else:
-                return 0
-        elif len(probabilities) == 3:
+                return 0  # Neutral
+        elif len(probabilities) == 3:  # PhoBERT
             if probabilities[1] > threshold:
-                return 1
+                return 1  # Positive
             elif probabilities[2] > threshold:
-                return -1
+                return -1  # Negative
             else:
-                return 0
+                return 0  # Neutral
         else:
             print(f"Unexpected probability length: {len(probabilities)}")
             return 0
@@ -130,7 +133,7 @@ def get_articles_from_api(page=1, limit=1029):
         if response.text:
             data = response.json()
             print(f"Retrieved {len(data)} articles from API (page {page})")
-            # Check for duplicate IDs in this batch
+            # Check for duplicates
             current_ids = {article.get("id_bai_viet", "unknown") for article in data}
             overlap = current_ids & processed_ids
             if overlap:
@@ -161,8 +164,9 @@ def main():
     page = 1
     batch_size = 1029
     global processed_ids
+    max_pages = 10  # Limit to avoid infinite loop
 
-    while True:
+    while page <= max_pages:
         articles = get_articles_from_api(page=page, limit=batch_size)
         if not articles:
             print("No more articles to process.")
@@ -173,6 +177,9 @@ def main():
         for i, article in enumerate(articles, 1):
             try:
                 article_id = article.get("id_bai_viet", "unknown")
+                if article_id == "unknown":
+                    print(f"Article {i}/{len(articles)} (page {page}): Missing ID, skipping.")
+                    continue
                 if article_id in processed_ids:
                     print(f"Article ID {article_id}: Already processed, skipping.")
                     continue
@@ -227,7 +234,8 @@ def main():
 
         page += 1
 
+    print(f"Script completed. Total unique articles processed: {len(processed_ids)}.")
+
 if __name__ == "__main__":
     print("Starting sentiment analysis script...")
     main()
-    print(f"Script completed. Total unique articles processed: {len(processed_ids)}.")
