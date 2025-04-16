@@ -9,9 +9,9 @@ import numpy as np
 import os
 from tensorflow.keras.optimizers import Adam
 
-# Disable TensorFlow GPU
+# Disable TensorFlow GPU and warnings
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # Suppress TensorFlow warnings
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 api_url = "http://api.rpa4edu.shop/api_bai_viet.php"
 
@@ -108,10 +108,10 @@ def classify_sentiment(probabilities, threshold=0.5):
         print(f"Error classifying sentiment: {e}")
         return 0
 
-def get_articles_from_api(page=1, limit=100):
+def get_articles_from_api(page=1, limit=1029):
     try:
         headers = {"Content-Type": "application/json"}
-        params = {"page": page, "limit": limit}  # Adjust based on API
+        params = {"page": page, "limit": limit}
         print(f"Fetching articles from API (page {page}, limit {limit})...")
         response = requests.get(api_url, headers=headers, params=params, timeout=10)
         response.raise_for_status()
@@ -142,7 +142,7 @@ def update_article_to_api(article):
 
 def main():
     page = 1
-    batch_size = 100  # Process 100 articles at a time
+    batch_size = 1029  # Match API's default
     while True:
         articles = get_articles_from_api(page=page, limit=batch_size)
         if not articles:

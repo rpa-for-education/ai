@@ -14,8 +14,8 @@ jobs:
   run-script:
     runs-on: ubuntu-latest
     env:
-      CUDA_VISIBLE_DEVICES: ""  # Disable GPU
-      TF_CPP_MIN_LOG_LEVEL: "3"  # Suppress TensorFlow warnings
+      CUDA_VISIBLE_DEVICES: ""
+      TF_CPP_MIN_LOG_LEVEL: "3"
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -54,6 +54,6 @@ jobs:
             echo "Starting bot..."
             python bai_viet.py
           else
-            echo "Stop action not supported without persistent process."
-            exit 1
+            echo "Stop action not supported without persistent process. No action taken."
+            exit 0  # Exit gracefully
           fi
