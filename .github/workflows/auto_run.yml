@@ -14,7 +14,7 @@ jobs:
   run-script:
     runs-on: ubuntu-latest
     env:
-      CUDA_VISIBLE_DEVICES: ""  # Disable GPU detection
+      CUDA_VISIBLE_DEVICES: ""  # Tắt GPU
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -47,22 +47,12 @@ jobs:
         run: |
           pip check
 
-      - name: Run or Stop Script
+      - name: Run Script
         run: |
           if [ "${{ github.event.inputs.action }}" = "start" ]; then
             echo "Starting bot..."
-            python bai_viet.py &
-            echo $! > bot.pid
-            sleep 30  # Increase to capture more output
-          elif [ "${{ github.event.inputs.action }}" = "stop" ]; then
-            echo "Stopping bot..."
-            if [ -f bot.pid ]; then
-              kill $(cat bot.pid) || echo "No process found"
-              rm -f bot.pid
-            else
-              echo "No PID file found"
-            fi
+            python bai_viet.py
           else
-            echo "Invalid action: ${{ github.event.inputs.action }}"
+            echo "Stop action not supported without persistent process."
             exit 1
           fi
