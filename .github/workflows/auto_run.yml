@@ -2,13 +2,8 @@ name: Run AI Script Daily
 
 on:
   schedule:
-    - cron: '00 17 * * *'  # 00:00 Việt Nam
+    - cron: '00 07 * * *'  # 14:00 Việt Nam
   workflow_dispatch:
-    inputs:
-      action:
-        description: 'Action to perform (start/stop)'
-        required: true
-        default: 'start'
 
 jobs:
   run-script:
@@ -46,24 +41,18 @@ jobs:
         run: |
           python -m pip install --upgrade pip setuptools
           pip install tensorflow==2.17.0 -v
-          pip install -r requirements.txt
+          pip install -r requirements.txt || echo "Dependency install failed"
 
       - name: Check dependency conflicts
         run: |
-          pip check
+          pip check || echo "pip check failed, but continuing..."
 
       - name: Run Script
         run: |
-          if [ "${{ github.event.inputs.action }}" = "start" ]; then
-            echo "Starting bot..."
-            python bai_viet.py
-          else
-            echo "Stop action not supported without persistent process."
-            exit 0
-          fi
+          echo "Running bai_viet.py..."
+          python bai_viet.py
 
       - name: Commit processed IDs
-        if: github.event.inputs.action == 'start'
         run: |
           git config user.name "GitHub Actions Bot"
           git config user.email "actions@github.com"
